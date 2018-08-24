@@ -1,90 +1,97 @@
-sequence01 = 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKY'
-sequence02 = 'VLSAADKTNVKAAWSKVGGHAGEYGAEALERMFLGFPTTKTYFPHFDLSHGSAQVKAHGKKVGDALTLAVGHLDDLPGALSNLSDLHAHKLRVDPVNFKLLSHCLLSTLAVHLPNDFTPAVHASLDKFLSSVSTVLTSKYR'
-# sequence01 = 'ACTGGGTCAAC'
-# sequence02 = 'ATTGGCCAC'
+from numpy import *
 
+matchScore = 5
+mismatchScore = -3
+gapScore = -4
+d = gapScore
 
-def create_matriz(m, n):
-    matriz = []
-    for i in range(n+1):
-        matriz.append([])
-        for j in range(m+1):
-            matriz[i].append('0')
-    return matriz
+def create_matriz(rows, cols):
+    F = zeros((rows,cols),int)
+    return F
 
-def init_matriz(matriz, sequence01, sequence02):
-    for i in range(2,len(sequence01)+1):
-        matriz[0][i] = sequence01[i-1]
-    for j in range(2,len(sequence02)+1):
-        matriz[j][0] = sequence02[j-1]
+def S(ai, bi):
+    if ai == bi:
+        r = matchScore
+    else:
+        r = mismatchScore
+    return r
 
-def init_DP(matriz):
-    val = 0
-    for coluna in range(len(matriz[0])):
-        matriz[0][coluna] = val
-        val -=5
-    val = 0
-    for linha in range(len(matriz)):
-        matriz[linha][0] = val
-        val -=5
+def init_DP(F, rows, cols):
+    for i in range(rows):
+        F[i,0] = d*i
+    for j in range(cols):
+        F[0,j] = d*j
 
-def define_scores():
-    match = 5
-    mismatch = -3
-    gap = -4
-    return match, mismatch, gap
+def compute_DP(F, A, B):
+    for i in range(1,len(A)+1):
+        for j in range(1,len(B)+1):
+            match = F[i-1,j-1] + S(A[i-1],B[j-1])
+            delete = F[i-1, j] + d
+            insert = F[i, j-1] + d
+            F[i,j] = max(match, insert, delete)
 
-def needleman_wunsch(seq1,seq2):
-    m, n = len(seq1), len(seq2)
-    match, mismatch, gap = define_scores()
-    S = create_matriz(m,n)
-    init_DP(S)
-    for j in range(1,m+1):
-        for i in range(1,n+1):
-            op1 = S[i-1][j-1] + mismatch
-            if (seq1[j-1] == seq2[i-1]):
-                op1 = S[i-1][j-1] + match
-            op2 = S[i][j-1] + gap
-            op3 = S[i-1][j] + gap
-            S[i][j] = max(op1,op2,op3)
-    align1, align2 = stacktrace(S,seq1,seq2)
-    print(align1)
-    print(align2)
-    return S
-
-
-def stacktrace(S,seq1,seq2):
-    m, n = len(seq1), len(seq2)
-    align1 = seq1[m-1]
-    align2 = seq2[n-1]
-    while (m>1) and (n>1):
-        score_diagonal = S[n-1][m-1]
-        score_top = S[n-1][m]
-        score_left = S[n][m-1]
-        max_score = max(score_top, score_diagonal, score_left)
-        if max_score == score_diagonal:
-            align1 += seq1[m-2]
-            align2 += seq2[n-2]
-            m -= 1
-            n -= 1
-        elif max_score == score_left:
-            align1 += seq1[m-2]
-            align2 += '-'
-            m -= 1
+def stackback(F, A, B):
+    AlignmentA, AlignmentB = '', ''
+    i = len(A)
+    j = len(B)
+    score = F[i,j]
+    while (i >= 0 and j >= 0):
+        if i == 0 and j == 0:
+            break
+        if (F[i,j] == F[i-1,j-1] + S(A[i-1], B[j-1])):
+            AlignmentA = A[i-1] + AlignmentA
+            AlignmentB = B[j-1] + AlignmentB
+            i = i - 1
+            j = j - 1
+        elif (F[i,j] == F[i-1,j] + d):
+            AlignmentA = A[i-1] + AlignmentA
+            AlignmentB = "-" + AlignmentB
+            i = i - 1
         else:
-            align1 += '-'
-            align2 += seq2[n-2]
-            n -= 1
+            AlignmentA = "-" + AlignmentA
+            AlignmentB = B[j-1] + AlignmentB
+            j = j - 1
 
-    return align1[::-1], align2[::-1]
+    return score, AlignmentA, AlignmentB
+
+def output(F, AlignmentA, AlignmentB, identity, score, sep):
+    print(AlignmentA)
+    print(sep)
+    print(AlignmentB)
+    print(F)
+    print("Score => {}".format(score))
+    print("Identity => {:.2f}".format(identity))
+
+def compute_identity(seq1, seq2):
+    matches = 0
+    separator = ''
+    for index in range(len(seq1)):
+        if seq1[index] == seq2[index]:
+            matches += 1
+            separator += '|'
+        else:
+            separator += ' '
+    identity = (float(matches)/float(len(seq1)))*100.0
+    return separator, identity
 
 
-
-
+def needleman_wunsch(A,B):
+    rows = len(A)+1
+    cols = len(B)+1
+    F = create_matriz(rows, cols)
+    init_DP(F, rows, cols)
+    compute_DP(F, A, B)
+    score, AlignmentA, AlignmentB = stackback(F, A, B)
+    sep, identity = compute_identity(AlignmentA, AlignmentB)
+    output(F, AlignmentA, AlignmentB, identity, score, sep)
 
 if __name__ == '__main__':
-    matriz = needleman_wunsch(sequence01, sequence02)
-    for linha in matriz:
-        for col in linha:
-            print("{0: <3}".format(col), end=" ")
-        print("\n")
+    # Caso de Teste 01
+    A = 'ALIGNMENT'
+    B = 'LIGAMENT'
+
+    # #Caso de Teste 02
+    # A = 'ATCCGATGCG'
+    # B = 'ACGCGCTGGGATCG'
+
+    needleman_wunsch(A,B)
